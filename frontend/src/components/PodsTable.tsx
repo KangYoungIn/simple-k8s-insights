@@ -1,24 +1,17 @@
-import { DataGrid, GridToolbar } from '@mui/x-data-grid'
-import { useOverviewData } from '../hooks/useOverviewData'
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  List,
-  ListItem,
-  ListItemText,
-  Typography,
-  Tooltip,
-  IconButton,
-  CircularProgress,
-  Box,
+  Table, TableHead, TableRow, TableCell, TableBody, TableSortLabel,
+  Typography, Box, CircularProgress, Tooltip, IconButton, TextField, Button, Dialog, DialogTitle, DialogContent, List
 } from '@mui/material'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
-import { PodDetailDialog } from './PodDetailDialog'
 import { useState } from 'react'
+import { useOverviewData } from '../hooks/useOverviewData'
+import { PodDetailDialog } from './PodDetailDialog'
 
 export default function PodsTable() {
   const { pods } = useOverviewData()
+  const [orderBy, setOrderBy] = useState<string>('name')
+  const [order, setOrder] = useState<'asc' | 'desc'>('asc')
+  const [filterText, setFilterText] = useState<string>('')
   const [openHelp, setOpenHelp] = useState(false)
   const [selectedPod, setSelectedPod] = useState<any | null>(null)
 
@@ -33,107 +26,110 @@ export default function PodsTable() {
     )
   }
 
-  const columns = [
-    { field: 'namespace', headerName: 'Namespace', flex: 1 },
-    { field: 'name', headerName: 'Pod Name', flex: 2 },
-    { field: 'node', headerName: 'Node', flex: 1.5 },
-    {
-      field: 'cpuUsage',
-      headerName: 'CPU Usage (m)',
-      flex: 1,
-      renderCell: (params: any) => formatNumber(params.row.cpu?.usage),
-    },
-    {
-      field: 'cpuPercent',
-      headerName: 'CPU % (Node)',
-      flex: 1,
-      renderCell: (params: any) => calcPercent(params.row.cpu?.usage, params.row.nodeCpuCapacity),
-    },
-    {
-      field: 'cpuRequests',
-      headerName: 'CPU Requests (m)',
-      flex: 1,
-      renderCell: (params: any) => formatNumber(params.row.cpu?.requests),
-    },
-    {
-      field: 'cpuLimits',
-      headerName: 'CPU Limits (m)',
-      flex: 1,
-      renderCell: (params: any) => formatNumber(params.row.cpu?.limits),
-    },
-    {
-      field: 'memoryUsage',
-      headerName: 'Memory Usage (MiB)',
-      flex: 1,
-      renderCell: (params: any) => formatNumber(params.row.memory?.usage),
-    },
-    {
-      field: 'memoryPercent',
-      headerName: 'Memory % (Node)',
-      flex: 1,
-      renderCell: (params: any) => calcPercent(params.row.memory?.usage, params.row.nodeMemoryCapacity),
-    },
-    {
-      field: 'memoryRequests',
-      headerName: 'Memory Requests (MiB)',
-      flex: 1,
-      renderCell: (params: any) => formatNumber(params.row.memory?.requests),
-    },
-    {
-      field: 'memoryLimits',
-      headerName: 'Memory Limits (MiB)',
-      flex: 1,
-      renderCell: (params: any) => formatNumber(params.row.memory?.limits),
+  const handleSort = (property: string) => {
+    const isAsc = orderBy === property && order === 'asc'
+    setOrder(isAsc ? 'desc' : 'asc')
+    setOrderBy(property)
+  }
+
+  const handleDownloadCSV = () => {
+    const headers = columns.map(col => col.headerName).join(',')
+    const rows = sortedPods.map(pod => {
+      return columns.map(col => {
+        const value = col.renderCell ? col.renderCell({ row: pod }) : getValue(pod, col.field)
+        return `"${value ?? ''}"`
+      }).join(',')
+    })
+    const csvContent = [headers, ...rows].join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.setAttribute('href', url)
+    link.setAttribute('download', 'pods_overview.csv')
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+  }
+
+  const filteredPods = pods.filter(pod => {
+    const target = `${pod.namespace} ${pod.name} ${pod.node}`.toLowerCase()
+    return target.includes(filterText.toLowerCase())
+  })
+
+  const sortedPods = filteredPods.slice().sort((a, b) => {
+    const aValue = getValue(a, orderBy)
+    const bValue = getValue(b, orderBy)
+    if (aValue == null) return 1
+    if (bValue == null) return -1
+    if (typeof aValue === 'number' && typeof bValue === 'number') {
+      return order === 'asc' ? aValue - bValue : bValue - aValue
     }
-  ]
+    return order === 'asc'
+      ? String(aValue).localeCompare(String(bValue))
+      : String(bValue).localeCompare(String(aValue))
+  })
 
   return (
     <section style={{ marginBottom: '40px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ fontSize: '20px', margin: 0, marginRight: '8px' }}>Pods Overview</h2>
+      <Box display="flex" alignItems="center" mb={2}>
+        <Typography variant="h6" sx={{ mr: 1 }}>Pods Overview</Typography>
         <Tooltip title="권장사항 기준 보기" arrow>
           <IconButton size="small" onClick={() => setOpenHelp(true)}>
             <HelpOutlineIcon fontSize="small" />
           </IconButton>
         </Tooltip>
-      </div>
+      </Box>
 
-      <div style={{ height: 700, width: '100%' }}>
-        <DataGrid
-          rows={pods}
-          columns={columns}
-          slots={{ toolbar: GridToolbar }}
-          getRowId={(row) => `${row.namespace}-${row.name}`}
-          onRowClick={(params) => setSelectedPod(params.row)}
+      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+        <TextField
+          size="small"
+          label="검색 (Namespace, Pod Name, Node)"
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          sx={{ width: 300 }}
         />
-      </div>
+        <Button variant="outlined" onClick={handleDownloadCSV}>CSV 다운로드</Button>
+      </Box>
+
+      <Table size="small" sx={{ minWidth: 1200, backgroundColor: 'background.paper' }}>
+        <TableHead>
+          <TableRow>
+            {columns.map((col) => (
+              <TableCell key={col.field}>
+                <TableSortLabel
+                  active={orderBy === col.field}
+                  direction={orderBy === col.field ? order : 'asc'}
+                  onClick={() => handleSort(col.field)}
+                >
+                  {col.headerName}
+                </TableSortLabel>
+              </TableCell>
+            ))}
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {sortedPods.map((pod) => (
+            <TableRow
+              key={`${pod.namespace}-${pod.name}`}
+              hover
+              onClick={() => setSelectedPod(pod)}
+              sx={{ cursor: 'pointer' }}
+            >
+              {columns.map((col) => (
+                <TableCell key={col.field}>
+                  {col.renderCell ? col.renderCell({ row: pod }) : getValue(pod, col.field)}
+                </TableCell>
+              ))}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
 
       <Dialog open={openHelp} onClose={() => setOpenHelp(false)}>
         <DialogTitle>권장사항 기준</DialogTitle>
         <DialogContent>
           <List dense>
-            {[
-              { text: 'CPU Request 미설정 또는 0: 설정 필요', severity: 'critical' },
-              { text: 'Memory Request 미설정 또는 0: 설정 필요', severity: 'critical' },
-              { text: 'CPU Usage가 Request 대비 10% 초과: Request 상향 권장', severity: 'critical' },
-              { text: 'CPU Request가 Usage의 2배 이상: Request 하향 권장', severity: 'warning' },
-              { text: 'CPU Limits 미설정 또는 0: 설정 필요', severity: 'critical' },
-              { text: 'CPU Limits가 Node Capacity의 2배 초과: Limits 하향 권장', severity: 'warning' },
-              { text: 'Memory Usage가 Request 대비 10% 초과: Request 상향 권장', severity: 'critical' },
-              { text: 'Memory Request가 Usage의 2배 이상: Request 하향 권장', severity: 'warning' },
-              { text: 'Memory Limits 미설정 또는 0: 설정 필요', severity: 'critical' },
-              { text: 'Memory Limits가 Node Capacity의 2배 초과: Limits 하향 권장', severity: 'warning' },
-            ].map((item, idx) => (
-              <ListItem key={idx} sx={{ py: 0.5 }}>
-                <ListItemText
-                  primary={
-                    <span style={{ color: item.severity === 'critical' ? '#f44336' : '#ff9800' }}>
-                      {item.text}
-                    </span>
-                  }
-                />
-              </ListItem>
-            ))}
+            {/* Help 리스트 항목 여기에 넣기 */}
           </List>
           <Typography variant="caption" color="textSecondary">
             권장사항은 클러스터 리소스 안정성과 효율성을 고려하여 생성되었습니다.
@@ -147,6 +143,58 @@ export default function PodsTable() {
     </section>
   )
 }
+
+// 헬퍼 함수
+const getValue = (obj: any, field: string) => {
+  const fields = field.split('.')
+  return fields.reduce((acc, curr) => acc?.[curr], obj)
+}
+
+const columns = [
+  { field: 'namespace', headerName: 'Namespace' },
+  { field: 'name', headerName: 'Pod Name' },
+  { field: 'node', headerName: 'Node' },
+  {
+    field: 'cpu.usage',
+    headerName: 'CPU Usage (m)',
+    renderCell: (params: any) => formatNumber(params.row.cpu?.usage),
+  },
+  {
+    field: 'cpuPercent',
+    headerName: 'CPU % (Node)',
+    renderCell: (params: any) => calcPercent(params.row.cpu?.usage, params.row.nodeCpuCapacity),
+  },
+  {
+    field: 'cpu.requests',
+    headerName: 'CPU Requests (m)',
+    renderCell: (params: any) => formatNumber(params.row.cpu?.requests),
+  },
+  {
+    field: 'cpu.limits',
+    headerName: 'CPU Limits (m)',
+    renderCell: (params: any) => formatNumber(params.row.cpu?.limits),
+  },
+  {
+    field: 'memory.usage',
+    headerName: 'Memory Usage (MiB)',
+    renderCell: (params: any) => formatNumber(params.row.memory?.usage),
+  },
+  {
+    field: 'memoryPercent',
+    headerName: 'Memory % (Node)',
+    renderCell: (params: any) => calcPercent(params.row.memory?.usage, params.row.nodeMemoryCapacity),
+  },
+  {
+    field: 'memory.requests',
+    headerName: 'Memory Requests (MiB)',
+    renderCell: (params: any) => formatNumber(params.row.memory?.requests),
+  },
+  {
+    field: 'memory.limits',
+    headerName: 'Memory Limits (MiB)',
+    renderCell: (params: any) => formatNumber(params.row.memory?.limits),
+  },
+]
 
 function calcPercent(usage: number, capacity: number) {
   if (!capacity) return '-'
