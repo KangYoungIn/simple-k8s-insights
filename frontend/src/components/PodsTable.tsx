@@ -51,10 +51,17 @@ export default function PodsTable() {
     document.body.removeChild(link)
   }
 
-  const filteredPods = pods.filter(pod => {
-    const target = `${pod.namespace} ${pod.name} ${pod.node}`.toLowerCase()
-    return target.includes(filterText.toLowerCase())
-  })
+  const filteredPods = pods
+    .map(pod => ({
+      ...pod,
+      cpuPercentValue: pod.nodeCpuCapacity ? (pod.cpu?.usage / pod.nodeCpuCapacity) * 100 : null,
+      memoryPercentValue: pod.nodeMemoryCapacity ? (pod.memory?.usage / pod.nodeMemoryCapacity) * 100 : null,
+    }))
+    .filter(pod => {
+      const target = `${pod.namespace} ${pod.name} ${pod.node}`.toLowerCase()
+      return target.includes(filterText.toLowerCase())
+    })
+
 
   const sortedPods = filteredPods.slice().sort((a, b) => {
     const aValue = getValue(a, orderBy)
@@ -144,7 +151,6 @@ export default function PodsTable() {
   )
 }
 
-// 헬퍼 함수
 const getValue = (obj: any, field: string) => {
   const fields = field.split('.')
   return fields.reduce((acc, curr) => acc?.[curr], obj)
@@ -160,9 +166,9 @@ const columns = [
     renderCell: (params: any) => formatNumber(params.row.cpu?.usage),
   },
   {
-    field: 'cpuPercent',
+    field: 'cpuPercentValue',
     headerName: 'CPU % (Node)',
-    renderCell: (params: any) => calcPercent(params.row.cpu?.usage, params.row.nodeCpuCapacity),
+    renderCell: (params: any) => formatPercent(params.row.cpuPercentValue),
   },
   {
     field: 'cpu.requests',
@@ -180,9 +186,9 @@ const columns = [
     renderCell: (params: any) => formatNumber(params.row.memory?.usage),
   },
   {
-    field: 'memoryPercent',
+    field: 'memoryPercentValue',
     headerName: 'Memory % (Node)',
-    renderCell: (params: any) => calcPercent(params.row.memory?.usage, params.row.nodeMemoryCapacity),
+    renderCell: (params: any) => formatPercent(params.row.memoryPercentValue),
   },
   {
     field: 'memory.requests',
@@ -196,10 +202,9 @@ const columns = [
   },
 ]
 
-function calcPercent(usage: number, capacity: number) {
-  if (!capacity) return '-'
-  const percent = (usage / capacity) * 100
-  return percent.toFixed(1) + '%'
+function formatPercent(value: number | null | undefined) {
+  if (value == null) return '-'
+  return value.toFixed(1) + '%'
 }
 
 function formatNumber(value: number) {
