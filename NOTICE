@@ -1,0 +1,43 @@
+NOTICE
+
+This product includes software developed by third parties.
+
+Included dependencies:
+
+- Kubernetes Client-Go (k8s.io/client-go)  
+  Licensed under the Apache License, Version 2.0.
+
+- Kubernetes API Machinery (k8s.io/apimachinery)  
+  Licensed under the Apache License, Version 2.0.
+
+- Kubernetes Metrics Client (k8s.io/metrics)  
+  Licensed under the Apache License, Version 2.0.
+
+- ECharts (Apache ECharts, https://echarts.apache.org/)  
+  Licensed under the Apache License, Version 2.0.
+
+- echarts-for-react  
+  Licensed under the Apache License, Version 2.0.
+
+- Material-UI (MUI, @mui/*)  
+  Licensed under the MIT License.
+
+- Emotion (emotion.sh, @emotion/*)  
+  Licensed under the MIT License.
+
+- React, React-DOM, React-Router-DOM (facebook/react)  
+  Licensed under the MIT License.
+
+- Vite (vitejs.dev)  
+  Licensed under the MIT License.
+  
+- TypeScript  
+  Licensed under the Apache License, Version 2.0.
+
+- ESLint and related plugins  
+  Licensed under the MIT License.
+
+---
+
+This software contains modified portions of the above-mentioned components.
+Original copyright notices and license terms are preserved.
