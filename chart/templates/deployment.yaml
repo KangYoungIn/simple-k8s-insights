@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "simple-k8s-insights.fullname" . }}
+  labels:
+    {{- include "simple-k8s-insights.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "simple-k8s-insights.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "simple-k8s-insights.name" . }}
+    spec:
+      serviceAccountName: {{ include "simple-k8s-insights.serviceAccountName" . }}
+      containers:
+        - name: {{ include "simple-k8s-insights.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

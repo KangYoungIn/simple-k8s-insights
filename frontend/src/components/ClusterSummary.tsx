@@ -1,5 +1,5 @@
 import { Box, Typography, IconButton, Dialog, DialogTitle,
-  DialogContent, List, ListItem, ListItemText, Tooltip, Grid, Card, CardContent, Divider, CircularProgress } from '@mui/material'
+  DialogContent, List, ListItem, ListItemText, Tooltip, Grid, Card, CardContent, Divider, CircularProgress, Table, TableHead, TableCell, TableBody, TableRow  } from '@mui/material'
 import ReactECharts from 'echarts-for-react'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import { useEffect, useState } from 'react'
@@ -204,31 +204,40 @@ function ResourceCard({ title, resource }: { title: string; resource: ResourceDa
 
         {/* 세부 리소스 현황 */}
         <Box mt={4} sx={{ border: '1px solid #ddd', borderRadius: 2 }}>
-          <Typography variant="subtitle2" gutterBottom>
+          <Typography variant="subtitle2" gutterBottom sx={{ p: 2 }}>
             세부 리소스 현황
           </Typography>
-            <Grid container spacing={0.5}>
+
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>항목</TableCell>
+                <TableCell>현재 값</TableCell>
+                <TableCell>권장 값</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {[
-                { label: 'Usage', value: formatResource(title, resource.usage) },
-                { label: 'Requests', value: formatResource(title, resource.requests) },
-                { label: 'Limits', value: formatResource(title, resource.limits) },
-                { label: 'Capacity', value: formatResource(title, resource.capacity) },
+                { label: 'Usage', value: formatResource(title, resource.usage), field: 'usage' },
+                { label: 'Requests', value: formatResource(title, resource.requests), field: 'requests' },
+                { label: 'Limits', value: formatResource(title, resource.limits), field: 'limits' },
+                { label: 'Capacity', value: formatResource(title, resource.capacity), field: 'capacity' },
               ].map((item) => (
-                <Grid container item key={item.label} alignItems="center">
-                  <Grid item xs={5}>
-                    <Typography variant="body2" color="textSecondary" sx={{ pl: 1 }}>
-                      {item.label}
-                    </Typography>
-                  </Grid>
-                  <Grid item xs={7}>
-                    <Typography variant="body2" fontWeight="bold">
-                      {item.value}
-                    </Typography>
-                  </Grid>
-                </Grid>
+                <TableRow key={item.label}>
+                  <TableCell>{item.label}</TableCell>
+                  <TableCell>{item.value}</TableCell>
+                  <TableCell>
+                    {(item.field === 'requests' || item.field === 'limits')
+                      ? getRecommendedRange(title, item.field as 'requests' | 'limits', resource.capacity)
+                      : '-'
+                    }
+                  </TableCell>
+                </TableRow>
               ))}
-            </Grid>
+            </TableBody>
+          </Table>
         </Box>
+
 
         {/* 권장 사항 영역 */}
         {recommendations.length > 0 && (
@@ -376,3 +385,20 @@ function formatResource(type: string, value: number) {
   return value.toLocaleString()
 }
 
+function getRecommendedRange(type: string, field: 'requests' | 'limits', capacity: number): string | null {
+  if (!capacity || capacity <= 0) return null
+
+  if (field === 'requests') {
+    const min = capacity * 0.6
+    const max = capacity * 0.7
+    return `${formatResource(type, min)} ~ ${formatResource(type, max)}`
+  }
+
+  if (field === 'limits') {
+    const min = capacity * 1.0
+    const max = capacity * 1.2
+    return `${formatResource(type, min)} ~ ${formatResource(type, max)}`
+  }
+
+  return null
+}

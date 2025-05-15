@@ -2,35 +2,38 @@ package api
 
 import (
 	"context"
-	"net/http"
+	"log"
 	"time"
 
 	"github.com/KangYoungIn/simple-k8s-insights/internal/service"
-
 	"github.com/gin-gonic/gin"
 	"k8s.io/client-go/kubernetes"
 	metricsclient "k8s.io/metrics/pkg/client/clientset/versioned"
 )
 
-func OverviewStreamHandler(c *gin.Context) {
+var (
+	KubeClient    *kubernetes.Clientset
+	MetricsClient *metricsclient.Clientset
+)
+
+func InitClients() {
 	config, err := LoadKubeConfig()
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to load kube config"})
-		return
+		log.Fatalf("Failed to load kube config: %v", err)
 	}
 
-	clientset, err := kubernetes.NewForConfig(config)
+	KubeClient, err = kubernetes.NewForConfig(config)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
+		log.Fatalf("Failed to create kube client: %v", err)
 	}
 
-	metricsClient, err := metricsclient.NewForConfig(config)
+	MetricsClient, err = metricsclient.NewForConfig(config)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create metrics client"})
-		return
+		log.Fatalf("Failed to create metrics client: %v", err)
 	}
+}
 
+func OverviewStreamHandler(c *gin.Context) {
 	c.Writer.Header().Set("Content-Type", "text/event-stream")
 	c.Writer.Header().Set("Cache-Control", "no-cache")
 	c.Writer.Header().Set("Connection", "keep-alive")
@@ -43,19 +46,19 @@ func OverviewStreamHandler(c *gin.Context) {
 		case <-c.Writer.CloseNotify():
 			return
 		case <-ticker.C:
-			clusterOverview, err := service.GetClusterResourceOverview(context.Background(), clientset, metricsClient)
+			clusterOverview, err := service.GetClusterResourceOverview(context.Background(), KubeClient, MetricsClient)
 			if err != nil {
 				c.SSEvent("error", gin.H{"error": err.Error()})
 				return
 			}
 
-			nodeOverview, err := service.GetNodeResourceOverview(context.Background(), clientset, metricsClient)
+			nodeOverview, err := service.GetNodeResourceOverview(context.Background(), KubeClient, MetricsClient)
 			if err != nil {
 				c.SSEvent("error", gin.H{"error": err.Error()})
 				return
 			}
 
-			podOverview, err := service.GetPodResourceOverview(context.Background(), clientset, metricsClient)
+			podOverview, err := service.GetPodResourceOverview(context.Background(), KubeClient, MetricsClient)
 			if err != nil {
 				c.SSEvent("error", gin.H{"error": err.Error()})
 				return
