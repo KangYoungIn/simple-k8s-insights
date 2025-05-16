@@ -1,4 +1,7 @@
-import { Box, Typography, Grid, Card, CardContent, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, List, ListItem, ListItemText, Divider, CircularProgress } from '@mui/material'
+import {
+  Box, Typography, Grid, Card, CardContent, IconButton, Tooltip, Dialog, DialogTitle, DialogContent,
+  List, ListItem, ListItemText, Divider, CircularProgress
+} from '@mui/material'
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline'
 import ReactECharts from 'echarts-for-react'
 import { useEffect, useState } from 'react'
@@ -11,7 +14,7 @@ interface NodeHistory {
 }
 
 export default function NodeCards() {
-  const { nodes } = useOverviewData()
+  const { nodes, pods } = useOverviewData()
   const [open, setOpen] = useState(false)
   const [histories, setHistories] = useState<NodeHistory[]>([])
 
@@ -30,7 +33,6 @@ export default function NodeCards() {
         if (found) {
           found.cpu.push({ time: now, percent: cpuPercent })
           found.memory.push({ time: now, percent: memoryPercent })
-
           if (found.cpu.length > 50) found.cpu.shift()
           if (found.memory.length > 50) found.memory.shift()
         } else {
@@ -51,12 +53,11 @@ export default function NodeCards() {
       <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" sx={{ py: 10 }}>
         <CircularProgress />
         <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-        노드 데이터를 불러오는 중입니다...
+          노드 데이터를 불러오는 중입니다...
         </Typography>
       </Box>
     )
   }
-
 
   return (
     <Box mb={6}>
@@ -74,14 +75,29 @@ export default function NodeCards() {
       <Grid container spacing={3}>
         {nodes.map((node) => {
           const nodeHistory = histories.find(h => h.name === node.name)
+          const podList = pods
+            .filter(pod => pod.node === node.name)
+            .map(pod => ({
+              name: pod.name,
+              value: (pod.cpu?.usage / node.cpu.capacity) * 100,
+              namespace: pod.namespace,
+              usage: pod.cpu?.usage
+            }))
+
+          const memList = pods
+            .filter(pod => pod.node === node.name)
+            .map(pod => ({
+              name: pod.name,
+              value: (pod.memory?.usage / node.memory.capacity) * 100,
+              namespace: pod.namespace,
+              usage: pod.memory?.usage
+            }))
 
           return (
             <Grid item xs={12} md={6} key={node.name}>
               <Card sx={{ borderRadius: 3, boxShadow: 3 }}>
                 <CardContent>
-                  <Typography variant="h6" align="center" gutterBottom>
-                    {node.name}
-                  </Typography>
+                  <Typography variant="h6" align="center" gutterBottom>{node.name}</Typography>
 
                   <Box mb={2}>
                     <Grid container spacing={2}>
@@ -92,16 +108,12 @@ export default function NodeCards() {
                         </Typography>
                       </Grid>
                       <Grid item xs={4}>
-                        <Typography variant="subtitle2" align="center">역할 (Role)</Typography>
-                        <Typography variant="body2" align="center">
-                          {node.role}
-                        </Typography>
+                        <Typography variant="subtitle2" align="center">역할</Typography>
+                        <Typography variant="body2" align="center">{node.role}</Typography>
                       </Grid>
                       <Grid item xs={4}>
                         <Typography variant="subtitle2" align="center">파드 수</Typography>
-                        <Typography variant="body2" align="center">
-                          {node.podCount.toLocaleString()} 개
-                        </Typography>
+                        <Typography variant="body2" align="center">{node.podCount.toLocaleString()} 개</Typography>
                       </Grid>
                     </Grid>
                   </Box>
@@ -110,23 +122,30 @@ export default function NodeCards() {
 
                   <Grid container spacing={2}>
                     <Grid item xs={6}>
-                      <ReactECharts option={getGaugeChart('CPU', node.cpu.usage, node.cpu.capacity)} style={{ height: '220px' }} />
+                      <ReactECharts option={getGaugeChart('CPU', node.cpu.usage, node.cpu.capacity)} style={{ height: 220 }} />
                     </Grid>
                     <Grid item xs={6}>
-                      <ReactECharts option={getGaugeChart('Memory', node.memory.usage, node.memory.capacity)} style={{ height: '220px' }} />
+                      <ReactECharts option={getGaugeChart('Memory', node.memory.usage, node.memory.capacity)} style={{ height: 220 }} />
                     </Grid>
                   </Grid>
 
-                  {/* 추가된 시계열 차트 */}
                   {nodeHistory && (
                     <Box mt={4}>
                       <Typography variant="subtitle2" gutterBottom>실시간 사용률 변화</Typography>
-                      <ReactECharts
-                        option={getLineChartOption(nodeHistory)}
-                        style={{ height: '300px' }}
-                      />
+                      <ReactECharts option={getLineChartOption(nodeHistory)} style={{ height: 300 }} />
                     </Box>
                   )}
+
+                  <Grid container spacing={2} mt={4}>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" gutterBottom>파드별 CPU 사용률</Typography>
+                      <ReactECharts option={getTreemapOption(podList, 'CPU')} style={{ height: 500 }} />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle2" gutterBottom>파드별 Memory 사용률</Typography>
+                      <ReactECharts option={getTreemapOption(memList, 'Memory')} style={{ height: 500 }} />
+                    </Grid>
+                  </Grid>
                 </CardContent>
               </Card>
             </Grid>
@@ -145,6 +164,38 @@ export default function NodeCards() {
       </Dialog>
     </Box>
   )
+}
+
+// ------------------ 차트 ------------------
+
+function getTreemapOption(data: any[], type: 'CPU' | 'Memory') {
+  return {
+    tooltip: {
+      formatter: (info: any) => {
+        const d = info.data
+        const usageUnit = type === 'CPU' ? 'm' : 'MiB'
+        return `
+          <strong>${d.namespace}/${d.name}</strong><br/>
+          사용률: ${d.value.toFixed(1)}%<br/>
+          사용량: ${d.usage?.toLocaleString() ?? '-'} ${usageUnit}
+        `
+      }
+    },
+    series: [
+      {
+        type: 'treemap',
+        roam: true,
+        nodeClick: false,
+        data,
+        label: { show: true, formatter: '{b}' },
+        upperLabel: { show: false },
+        itemStyle: {
+          borderColor: '#999',
+          borderWidth: 1
+        }
+      }
+    ]
+  }
 }
 
 function getGaugeChart(name: string, usage: number, capacity: number) {
@@ -212,6 +263,7 @@ function getGaugeChart(name: string, usage: number, capacity: number) {
     ]
   }
 }
+
 
 function getLineChartOption(history: NodeHistory) {
   return {
